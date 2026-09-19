@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+tests/pytest_temp/
+tests/loader_test_data.csv
+.venv/
+models/*.joblib
+data/processed/*.csv
+!data/processed/market_data.csv
