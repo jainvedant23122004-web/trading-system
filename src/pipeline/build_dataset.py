@@ -6,7 +6,6 @@ import warnings
 import pandas as pd
 
 from ..config import AUDIT_PATH, DATA_PATH, RAW_DIR
-from ..data_sources.gift_nifty import load_gift_nifty_data
 from ..data_sources.yahoo import load_raw_ohlc
 from ..features import FEATURES, TARGET
 from .align_dates import align_prior_observation
@@ -20,7 +19,7 @@ def build_dataset(
     audit_path: str | Path = AUDIT_PATH,
     require_complete: bool = False,
 ) -> pd.DataFrame:
-    """Build chronological Indian sessions; preserve missing GIFT unless required.
+    """Build six-feature historical observations, preserving invalid rows as missing.
 
     Validation completes before any processed CSV is replaced.
     """
@@ -28,17 +27,22 @@ def build_dataset(
     nifty = nifty_it_returns(load_raw_ohlc(raw / "nifty_it.csv"))
     combined = nifty
     for name in SOURCE_FEATURES:
-        returns = close_to_close_returns(load_raw_ohlc(raw / f"{name}.csv"), f"{name}_ret")
-        combined = align_prior_observation(combined, returns, f"{name}_ret", name)
-    gift = load_gift_nifty_data(raw / "gift_nifty.csv")
-    combined = combined.merge(gift, on="date", how="left", validate="one_to_one")
+        prices = load_raw_ohlc(raw / f"{name}.csv")
+        invalid = (prices["high"] < prices[["open", "close", "low"]].max(axis=1)) | (
+            prices["low"] > prices[["open", "close", "high"]].min(axis=1))
+        if name != "usdinr" and invalid.any():
+            raise ValueError(f"{name}: inconsistent OHLC bounds")
+        if name == "usdinr":
+            warnings.warn(f"USD/INR: excluding returns touching {int(invalid.sum())} inconsistent OHLC rows; using >=2 calendar-day lag", stacklevel=2)
+        returns = close_to_close_returns(prices, f"{name}_ret")
+        returns.loc[invalid | invalid.shift(1, fill_value=False), f"{name}_ret"] = float("nan")
+        combined = align_prior_observation(combined, returns, f"{name}_ret", name,
+                                           min_calendar_lag_days=2 if name == "usdinr" else 1)
     combined = combined.sort_values("date").reset_index(drop=True)
     missing = validate_dataset(combined)
     print_dataset_report(combined, missing)
     if require_complete and any(missing.values()):
-        raise ValueError("Complete features required; missing values found. Add GIFT data or use a partial build.")
-    if missing["gift_ret"]:
-        warnings.warn("Processed dataset has missing GIFT values; training will drop those rows", stacklevel=2)
+        raise ValueError("Complete features required; missing warm-up or rejected observations found")
 
     output = Path(output_path)
     audit = Path(audit_path)

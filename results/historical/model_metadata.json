@@ -1,0 +1,92 @@
+{
+  "data_kind": "historical",
+  "trained_at_utc": "2026-11-17T10:17:16.329876+00:00",
+  "dataset": "C:\\Users\\DELL\\OneDrive\\Desktop\\trading-system-test\\trading-sector-model\\data\\processed\\market_data.csv",
+  "dataset_sha256": "c114028b45316320926d89dadc5a9c5bc9f4c83d215a82b0e747fa4d14ce32f3",
+  "raw_sha256": {
+    "dow.csv": "00a9a280af967048ad631307e9b6e546f0ef5a9b0f5d65b8a60f40cf3363fd9d",
+    "nasdaq.csv": "7b5112a5e1e2d1a4c53a6c30a558da7e33f8a616ad0a9ea949e557ab85f1a2b3",
+    "nifty_it.csv": "70178a5632f963abfc33bc7cead43d8c61dfe9cb7748102af6c42b247a2be7cd",
+    "sp500.csv": "3861c60b991a59b486e00915d8eb7d77984569990f6a923a00fc89edf99d057c",
+    "usdinr.csv": "fd0041b6ee9973aec3070f8b557fe21c99277319f4e73b12c3f226213449ddc2",
+    "vix.csv": "947e631e2c95f2f36260ac82a348f92ed144439b8c356a186d6ad3136a366c81"
+  },
+  "model_sha256": "c825bb85c0066a3c35768087a6fe0bcc52deaa9aae62fce5c10b1ad8f098ba7c",
+  "features": [
+    "nasdaq_ret",
+    "sp500_ret",
+    "dow_ret",
+    "vix_ret",
+    "usdinr_ret",
+    "sector_prev_ret"
+  ],
+  "target": "100 * (NIFTY IT close - open) / open; percent units",
+  "usable_rows": 2671,
+  "train": {
+    "start": "2015-01-06",
+    "end": "2024-06-11",
+    "rows": 2136
+  },
+  "test": {
+    "start": "2024-06-12",
+    "end": "2026-09-18",
+    "rows": 535
+  },
+  "selected_alpha": 100.0,
+  "cv": [
+    {
+      "alpha": 0.01,
+      "mean_cv_mse": 1.2791395364135596
+    },
+    {
+      "alpha": 0.1,
+      "mean_cv_mse": 1.2790690647901366
+    },
+    {
+      "alpha": 1.0,
+      "mean_cv_mse": 1.2784371351072155
+    },
+    {
+      "alpha": 10.0,
+      "mean_cv_mse": 1.2753053090396171
+    },
+    {
+      "alpha": 100.0,
+      "mean_cv_mse": 1.2711042115546698
+    }
+  ],
+  "git_revision": "dcd4619c34080891e6367e485160c8213b4e97ae",
+  "working_tree_dirty": true,
+  "source_code_sha256": {
+    "main.py": "815292f42a662f1ae8ea130a5211ab55262f3d73c8b06deb6aafe54f2b542782",
+    "src\\__init__.py": "540c8097e3c33bbbb57560c0829e0074d120ac36c8a46023d230443c3e8466cc",
+    "src\\config.py": "83c8a4cf7364f4d72390cd140c62e207c4224e45cc8b5df14e93d8fc2f5156f0",
+    "src\\data_loader.py": "a134d1ac8d5c70bfcbe13f718ed48eaeb25ed2878b3784edcbc163e8f9ffa6bf",
+    "src\\data_sources\\__init__.py": "1e7629b873843af98582975fbf103990c5e3d981e963d2934985b7b404f8cf11",
+    "src\\data_sources\\gift_nifty.py": "05623520f6fe93bbfd8d8eb7e7f46e6b33a716069cac342d6cccaba0963db90f",
+    "src\\data_sources\\yahoo.py": "0f42398898bce08ea81892af6b2d8502c04bfb39290281c11515f5f785ab7e65",
+    "src\\evaluate.py": "c1093436edb4cfccf0373f0d23970807fbaaaaa9c3c083c5db74b0d75116fdd9",
+    "src\\features.py": "fd17907107563ee173be3632d36b945cc27821e39bb5653416b71e6672538474",
+    "src\\pipeline\\__init__.py": "655a1310c82c7bbe380af1cc0fa8df9992469e9f19ca1cc6a9109c305479f0b3",
+    "src\\pipeline\\align_dates.py": "aac7ce98b092cd5b821162d53d1b3bbe393a5d74984f3d3088379c1230d0a8f4",
+    "src\\pipeline\\build_dataset.py": "4956b4f3b1e398d688b320e52576ab3d3e605152bbea2d5477d76dfd0009ed50",
+    "src\\pipeline\\calculate_returns.py": "f99525de231d5ddb22d447d6ea0c5acd6099c522f7a2546b56f3ec34eeb8212e",
+    "src\\pipeline\\download_data.py": "12e29a9f1afbd6f719a36e0f2f8226cf3d602e2a6b2e1bab8f5f8565270b08d9",
+    "src\\pipeline\\validate_dataset.py": "6c89ad029070bfc379b435fb7d1fe4bad1875538042f3e3ce52fad8d08d18b28",
+    "src\\predict.py": "15e3c5686f833d1c94b134f15997b53aabd42e3b657f90bc357209c0cc0257d6",
+    "src\\research.py": "47882cb29dee165216fb6647a7c7f8201fb74136e9bd6ae604492650f61195d9",
+    "src\\train.py": "4470ffe0c02482b3cae711def88413bb688f266faa7741676b1b69e72e18c2f9"
+  },
+  "python": "3.12.10",
+  "packages": {
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1",
+    "joblib": "1.6.0",
+    "yfinance": "1.7.0"
+  },
+  "raw_rows": 2889,
+  "excluded_rows": 218,
+  "availability_policy": "US source date < Indian date; FX source date < Indian date minus one calendar day; inconsistent FX endpoints excluded; max source age US 7 / FX 10 days",
+  "limitations": "Date-based historical proxy, not verified point-in-time 09:10 IST data. FX vendor bar timezone and revisions uncertified. Not a live forecast or backtest."
+}

@@ -1,0 +1,15 @@
+{
+  "raw_indian_rows": 2889,
+  "usable_rows": 2671,
+  "excluded_model_rows": 218,
+  "feature_missing_counts": {
+    "nasdaq_ret": 3,
+    "sp500_ret": 3,
+    "dow_ret": 3,
+    "vix_ret": 3,
+    "usdinr_ret": 217,
+    "sector_prev_ret": 1
+  },
+  "fx_inconsistent_raw_rows": 117,
+  "availability_date_checks": "passed; timestamp provenance remains uncertified"
+}

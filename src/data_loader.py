@@ -24,6 +24,8 @@ def load_market_data(path: str | Path = DATA_PATH) -> pd.DataFrame:
 
     frame = frame.loc[:, required].copy()
     frame["date"] = pd.to_datetime(frame["date"], format="%Y-%m-%d", errors="raise")
+    if frame["date"].isna().any():
+        raise ValueError("Missing dates are not allowed")
     if frame["date"].duplicated().any():
         raise ValueError("Duplicate dates are not allowed")
 

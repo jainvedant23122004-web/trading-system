@@ -25,6 +25,8 @@ def chronological_split(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame
 
 def train_model(train_data: pd.DataFrame) -> Pipeline:
     """Select alpha with forward time-series folds entirely within training data."""
+    if len(train_data) < 3 or not train_data["date"].is_monotonic_increasing or train_data["date"].duplicated().any():
+        raise ValueError("Training requires at least three unique chronological observations")
     pipeline = Pipeline([("scaler", StandardScaler()), ("ridge", Ridge())])
     folds = TimeSeriesSplit(n_splits=min(5, len(train_data) - 1))
     search = GridSearchCV(
@@ -34,7 +36,10 @@ def train_model(train_data: pd.DataFrame) -> Pipeline:
         scoring="neg_mean_squared_error",
     )
     search.fit(train_data[FEATURES], train_data[TARGET])
-    return search.best_estimator_
+    model = search.best_estimator_
+    model.cv_report_ = [{"alpha": float(p["ridge__alpha"]), "mean_cv_mse": float(-score)}
+                        for p, score in zip(search.cv_results_["params"], search.cv_results_["mean_test_score"])]
+    return model
 
 
 def save_model(model: Pipeline, path: str | Path = MODEL_PATH) -> None:

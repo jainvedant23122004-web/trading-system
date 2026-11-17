@@ -24,7 +24,7 @@ def test_nifty_target_and_previous_session_shift() -> None:
     """The previous feature is the prior Indian session's open-to-close return."""
     source = pd.DataFrame({
         "date": pd.to_datetime(["2026-09-21", "2026-09-17", "2026-09-18"]),
-        "open": [100, 100, 100], "close": [102, 101, 99],
+        "open": [100, 100, 100], "high": [103, 102, 101], "low": [99, 99, 98], "close": [102, 101, 99],
     })
     result = nifty_it_returns(source)
     assert result["nifty_it_ret"].tolist() == pytest.approx([1.0, -1.0, 2.0])
@@ -125,33 +125,30 @@ def test_dataset_validation_rejects_lookahead_and_bad_shift() -> None:
 
 
 def test_dataset_validation_reports_missing_values() -> None:
-    """Known missing GIFT and first-session lag are counted separately."""
+    """Legacy GIFT does not affect completeness; first-session lag is missing."""
     missing = validate_dataset(_internal_frame())
-    assert missing["gift_ret"] == 2
+    assert "gift_ret" not in missing
     assert missing["sector_prev_ret"] == 1
 
 
 def test_build_dataset_outputs_ordered_model_columns(monkeypatch) -> None:
-    """The full offline builder emits only the nine ordered model columns."""
+    """The full offline builder emits the eight ordered model columns."""
     from pathlib import Path
     import src.pipeline.build_dataset as builder
 
     nifty = pd.DataFrame({"date": pd.to_datetime(["2026-09-21", "2026-09-17", "2026-09-18"]),
-                          "open": [100, 100, 100], "close": [102, 101, 99]})
+                          "open": [100, 100, 100], "high": [103, 102, 101], "low": [99, 99, 98], "close": [102, 101, 99]})
     source = pd.DataFrame({"date": pd.to_datetime(["2026-09-16", "2026-09-17", "2026-09-18"]),
-                           "close": [100, 101, 102]})
+                           "open": [100, 101, 102], "high": [100, 101, 102], "low": [100, 101, 102], "close": [100, 101, 102]})
     monkeypatch.setattr(builder, "load_raw_ohlc", lambda path: nifty if Path(path).stem == "nifty_it" else source)
-    monkeypatch.setattr(builder, "load_gift_nifty_data", lambda path: pd.DataFrame({
-        "date": pd.Series(dtype="datetime64[ns]"), "gift_ret": pd.Series(dtype=float)
-    }))
     output = Path(__file__).parent / "pipeline_model_test.csv"
     audit = Path(__file__).parent / "pipeline_audit_test.csv"
     try:
-        with pytest.warns(UserWarning, match="missing GIFT"):
+        with pytest.warns(UserWarning, match="USD/INR"):
             result = build_dataset(raw_dir="unused", output_path=output, audit_path=audit)
         assert result["date"].is_monotonic_increasing
         assert result.columns.tolist() == ["date", "nasdaq_ret", "sp500_ret", "dow_ret", "vix_ret",
-                                            "gift_ret", "usdinr_ret", "sector_prev_ret", "nifty_it_ret"]
+                                            "usdinr_ret", "sector_prev_ret", "nifty_it_ret"]
         assert pd.read_csv(output).columns.tolist() == result.columns.tolist()
         assert "nasdaq_source_date" in pd.read_csv(audit).columns
     finally:

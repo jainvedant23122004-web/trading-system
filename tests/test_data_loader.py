@@ -28,7 +28,7 @@ def csv_path() -> Iterator[Path]:
 def test_loader_sorts_and_drops_missing_row(csv_path: Path) -> None:
     """Only complete rows remain and the earliest date comes first."""
     frame = valid_frame()
-    frame.loc[0, "gift_ret"] = None
+    frame.loc[0, "nasdaq_ret"] = None
     frame.to_csv(csv_path, index=False)
     with pytest.warns(UserWarning, match="Dropped 1 rows"):
         loaded = load_market_data(csv_path)

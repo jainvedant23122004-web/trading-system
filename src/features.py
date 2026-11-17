@@ -5,7 +5,6 @@ FEATURES = [
     "sp500_ret",
     "dow_ret",
     "vix_ret",
-    "gift_ret",
     "usdinr_ret",
     "sector_prev_ret",
 ]

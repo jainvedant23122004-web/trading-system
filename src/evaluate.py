@@ -10,6 +10,22 @@ from .features import FEATURES, TARGET
 THRESHOLDS = (0.10, 0.20, 0.30, 0.50)
 
 
+def regression_metrics(actual, predicted) -> dict:
+    """Metrics in percentage points; undefined correlation/R2 are JSON null."""
+    actual, predicted = np.asarray(actual, dtype=float), np.asarray(predicted, dtype=float)
+    if actual.ndim != 1 or actual.shape != predicted.shape or not len(actual):
+        raise ValueError("Expected matching nonempty one-dimensional arrays")
+    if not np.isfinite(actual).all() or not np.isfinite(predicted).all():
+        raise ValueError("Evaluation values must be finite")
+    return {
+        "mae": float(mean_absolute_error(actual, predicted)),
+        "rmse": float(np.sqrt(mean_squared_error(actual, predicted))),
+        "r2": float(r2_score(actual, predicted)) if len(actual) > 1 and np.std(actual) > 0 else None,
+        "directional_accuracy": float(np.mean(np.sign(actual) == np.sign(predicted))),
+        "correlation": float(np.corrcoef(actual, predicted)[0, 1]) if len(actual) > 2 and np.std(actual) > 0 and np.std(predicted) > 1e-12 else None,
+    }
+
+
 def evaluate_model(model: Pipeline, test_data: pd.DataFrame) -> dict[str, float]:
     """Print and return holdout metrics; threshold values use percentage points."""
     actual = test_data[TARGET].to_numpy()

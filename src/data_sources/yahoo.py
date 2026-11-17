@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 
 RAW_COLUMNS = ("date", "open", "high", "low", "close")
 
@@ -28,10 +29,12 @@ def validate_raw_ohlc(frame: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Raw OHLC is missing columns: {', '.join(sorted(missing))}")
     data = frame.loc[:, list(RAW_COLUMNS)].copy()
     data["date"] = pd.to_datetime(data["date"], errors="raise").dt.tz_localize(None).dt.normalize()
+    if data["date"].isna().any():
+        raise ValueError("Raw OHLC has missing dates")
     for column in RAW_COLUMNS[1:]:
         data[column] = pd.to_numeric(data[column], errors="raise")
-    if data[list(RAW_COLUMNS[1:])].isna().any().any():
-        raise ValueError("Raw OHLC has missing prices")
+    if not np.isfinite(data[list(RAW_COLUMNS[1:])].to_numpy()).all():
+        raise ValueError("Raw OHLC has missing or non-finite prices")
     if not (data[list(RAW_COLUMNS[1:])] > 0).all().all():
         raise ValueError("Raw OHLC prices must be positive")
     if data.empty:

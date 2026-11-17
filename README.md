@@ -1,73 +1,110 @@
-# Nifty IT pre-market direction research
+# NIFTY IT Market Forecasting System
 
-This Python 3.11+ project estimates Nifty IT's intraday open-to-close percentage return from information available before the Indian market opens. Version 1 covers only Nifty IT. It is **experimental research software**, not guaranteed trading advice.
+A Python research prototype that estimates NIFTY IT intraday returns using global equities, volatility, currency movements, and previous-session sector performance. The historical workflow is functional; predictive usefulness has not been established.
 
-## Data contract
+## Architecture and stack
 
-Place a processed CSV at `data/processed/market_data.csv` with one row per Indian trading date. Its columns are `date` (YYYY-MM-DD), the seven features below, and `nifty_it_ret`. All returns are percentage values, so `0.25` means `0.25%`.
+Yahoo daily OHLC ? data validation ? return features and date alignment ? chronological split ? StandardScaler + Ridge / GridSearchCV ? holdout evaluation ? saved-model manual prediction.
 
-| Feature | Meaning for Indian trading date t |
-| --- | --- |
-| `nasdaq_ret` | Nasdaq return from the previous completed US session |
-| `sp500_ret` | S&P 500 return from the previous completed US session |
-| `dow_ret` | Dow Jones return from the previous completed US session |
-| `vix_ret` | VIX percentage change from the previous completed US session |
-| `gift_ret` | GIFT Nifty movement observed before the Indian open |
-| `usdinr_ret` | USD/INR overnight or pre-market change observed before the Indian open |
-| `sector_prev_ret` | Nifty IT open-to-close return from the previous Indian session |
+Python 3.11+, pandas, NumPy, scikit-learn, joblib, yfinance, matplotlib, pytest. `requirements.txt` declares dependencies; `requirements-lock.txt` records the installed versions used for this milestone. The parent directory's requirements file is an older environment snapshot; use this project's files.
 
-The target `nifty_it_ret` is `((Nifty IT close - Nifty IT open) / Nifty IT open) * 100` for date t. The loader validates columns, dates, and numeric values; sorts dates; and reports rows dropped for missing or non-finite values. It cannot verify observation timestamps or source provenance. The data producer must ensure every feature was actually known before date t's Indian open. Using same-day closing values or a US session that finished after the relevant Indian open would cause look-ahead bias and make evaluation misleading.
+## Feature and target contract
 
-The original example is saved as `data/processed/market_data_synthetic.csv`. It is **synthetic mock data** for checking the code path; its metrics are not real market performance. The active `market_data.csv` is generated from downloaded historical data and is ignored by Git.
+All returns use percent units: `0.25` means 0.25%, not 25%.
 
-## Model and evaluation
+| Column | Definition |
+|---|---|
+| nasdaq_ret | 100 ? (source close / previous source close ? 1), Nasdaq `^IXIC` |
+| sp500_ret | Same calculation, S&P 500 `^GSPC` |
+| dow_ret | Same calculation, Dow Jones `^DJI` |
+| vix_ret | Same calculation, VIX `^VIX`; percentage change, not level |
+| usdinr_ret | Same calculation, USD/INR `INR=X`, with conservative lag and quality exclusions |
+| sector_prev_ret | Previous Indian session's NIFTY IT open-to-close return |
+| nifty_it_ret | Target: **100 ? (current close ? current open) / current open**, `^CNXIT` |
 
-The model is a scikit-learn `Pipeline(StandardScaler, Ridge)`. Scaling puts the inputs on comparable scales so Ridge's penalty treats them fairly. Ridge handles correlated global indices and reduces unstable coefficients. Candidate alpha values `0.01`, `0.1`, `1`, `10`, and `100` are compared using forward time-series cross-validation on the training period only. The first 80% of dates are training data; the final 20% are held out. Chronological splitting is necessary because random shuffling would let later conditions influence an earlier prediction.
+Exactly six predictors are required. GIFT Nifty is excluded from acquisition, dataset building, completeness checks, training, and prediction. Its unused legacy loader and the original seven-feature synthetic example remain for historical reference.
 
-Training prints the selected alpha, intercept, and coefficients ordered by absolute size. Standardized coefficients provide an approximate comparison of relative feature influence, not causal effects. Holdout output includes MAE, RMSE, R², overall directional accuracy, and directional accuracy plus average realized returns for predictions with absolute value at least `0.10%`, `0.20%`, `0.30%`, and `0.50%`. Empty threshold groups print N/A.
+US features use the latest source date strictly before the Indian target date. This avoids using that day's later US close and accommodates different source holidays through backward matching. Prior-session sector returns are shifted before filtering incomplete model rows. Returns never substitute zero for missing data.
 
-## Historical Data Pipeline
+### Availability and FX policy
 
-Run the stages separately so raw acquisition can cover a broad history while modeling can later select its own periods:
+The intended decision deadline is **09:10 IST**. Prior-date US sessions are assumed complete by this deadline; downloaded CSVs contain dates rather than verified observation/release timestamps. This is a historical date-alignment proxy, **not full point-in-time validation**. Vendor revisions and exact bar availability are uncertified.
 
-```powershell
-python main.py download-data
-python main.py build-dataset
-python main.py train
-```
+The local USD/INR file has **117 rows** whose open/close/high/low bounds are inconsistent. The builder excludes a return if either of its two endpoints has inconsistent OHLC. It preserves missing returns rather than bridging across rejected rows. FX source dates must be strictly earlier than Indian date minus one calendar day (at least two calendar dates old), adding a conservative buffer because Yahoo FX daily bar timing is not certified. This is a delayed daily FX proxy, not a pre-open FX quote. Source ages above 7 calendar days for US data or 10 for FX are rejected as missing. These fixed engineering policies were not selected using holdout scores.
 
-`download-data` fetches daily OHLC from Yahoo via yfinance and saves one CSV per asset in `data/raw/`. It reuses valid raw files unless `--refresh` is passed. The default acquisition start is `2015-01-01` and the end is open-ended. Override them with `python main.py download-data --refresh --start 2020-01-01 --end 2025-01-01`; Yahoo treats the end as exclusive. The **acquisition date range is independent of the train/test date range**. Training still uses a chronological 80/20 split of complete processed observations. Cached files are reused as-is, so use `--refresh` when you need newer data.
+A better timestamp-certified FX source remains future work. Alignment audit dates are saved in `data/processed/market_data_audit.csv`. Missing warm-up/quality-excluded rows remain in the processed CSV and are explicitly removed by the loader. `build-dataset --require-complete` rejects any missing values, including warm-up rows; use the ordinary build for this snapshot.
 
-| Raw file | Yahoo ticker | Derived model value |
-| --- | --- | --- |
-| `nasdaq.csv` | `^IXIC` | prior completed US session close-to-close `nasdaq_ret` |
-| `sp500.csv` | `^GSPC` | prior completed US session close-to-close `sp500_ret` |
-| `dow.csv` | `^DJI` | prior completed US session close-to-close `dow_ret` |
-| `vix.csv` | `^VIX` | prior completed US session close-to-close `vix_ret` |
-| `usdinr.csv` | `INR=X` | latest earlier daily close-to-close `usdinr_ret` |
-| `nifty_it.csv` | `^CNXIT` | current Indian open-to-close target and prior Indian session return |
+## Verified historical experiment
 
-US and Indian trading dates cannot be merged directly: an Indian open on date t happens before that calendar day's US close. Each Indian row therefore takes the latest US source date **strictly earlier** than t. The same backward match naturally handles US and Indian holidays without filling returns with zero. Nifty IT's `sector_prev_ret` is a one-session shift on Indian trading dates. `data/processed/market_data_audit.csv` records the matched source dates so they can be checked for look-ahead bias. The builder checks dates, numeric values, missing data, target lag, and source-date order before writing the model CSV.
+The existing raw snapshot was reused without refreshing or selecting a favorable period. Raw NIFTY IT: **2,889 sessions, 2015-01-01?2026-09-18**. After feature warm-up and quality exclusions: **2,671 usable observations, 2015-01-06?2026-09-18**. There are 218 excluded model rows, including 217 missing FX feature rows.
 
-The USD/INR value is a **temporary daily close approximation**, not an observed pre-open FX quote. This pipeline conservatively uses a source date strictly before the Indian date because a same-day daily close is not known at 09:15 IST. Replace this data-source stage later with timestamped pre-open FX data. Yahoo daily histories can contain missing or revised prices and do not certify the exact time a quote became available.
+- Training: **2,136 rows**, 2015-01-06?2024-06-11.
+- Untouched chronological holdout: **535 rows**, 2024-06-12?2026-09-18.
+- Five expanding TimeSeriesSplit folds on training only; GridSearchCV minimizes MSE across alpha 0.01, 0.1, 1, 10, 100.
+- Selected alpha: **100**. StandardScaler is fitted inside each CV pipeline. Final model uses training rows only, not the holdout.
 
-GIFT Nifty has no reliable integrated source. You may provide `data/raw/gift_nifty.csv` with `date,gift_ret` rows known before each Indian open. An optional timezone-aware `observed_at` column is checked against 09:15 IST; date-only CSVs require an external provenance check. Without that file, `gift_ret` remains missing for every row. `build-dataset` produces a partial dataset and prints missing counts; `build-dataset --require-complete` fails before replacing the CSV if any value is missing. The seven-feature model cannot train on a dataset with no GIFT values. To exercise the existing model on mock data, run `python main.py train --data data/processed/market_data_synthetic.csv`. That output is only a software demonstration.
+| Model | MAE (pp) | RMSE (pp) | R? | Direction accuracy |
+|---|---:|---:|---:|---:|
+| Ridge | 0.879579 | 1.174003 | -0.000795 | 53.46% |
+| Zero return | 0.883178 | 1.174397 | -0.001466 | 0.00% |
+| Training mean | 0.880068 | 1.173572 | -0.000061 | 53.64% |
+| Previous session | 1.314821 | 1.725682 | -1.162361 | 49.16% |
+| Majority direction | 1.063250 | 1.397363 | -0.417833 | 53.64% |
 
-## Run
+Every comparison uses the same 535 dates. Majority direction is learned from training sign frequencies (negative here); its constant prediction magnitude is training mean absolute return. This supplies regression metrics for a primarily directional benchmark. Zero predicts neutral, so its 0% sign accuracy is not a useful binary-direction benchmark.
 
-From this directory:
+Training Ridge: MAE **0.799472 pp**, RMSE **1.092416 pp**, R? **0.004527**, direction accuracy **54.54%**. Test prediction/actual Pearson correlation: **0.019805** (descriptive; no significance claim).
+
+Ridge misses the 55% research goal and positive holdout R?, and does not beat the training mean on RMSE or direction. Slight MAE improvements do not demonstrate a forecasting edge. Three consecutive holdout segments have directional accuracies **48.04%, 56.18%, 56.18%**; this is descriptive stability analysis, not independent walk-forward retraining. The final holdout was not used to tune features, alpha, or classification thresholds. Future iteration should reserve new unseen data.
+
+## Reproduce
+
+Run from this directory. The existing workspace virtual environment is `..\.venv`; a fresh clone may create its own environment:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python main.py train --data data/processed/market_data_synthetic.csv
-python main.py predict
-python -m pytest -q
+python -m pip install -r requirements-lock.txt
+# Only needed if raw CSVs are absent; downloading later can change results:
+python main.py download-data --start 2015-01-01 --end 2026-09-20
+python main.py build-dataset
+python main.py train --charts
+python main.py evaluate
+python main.py predict --demo
+python -m pytest -q -p no:cacheprovider
 ```
 
-On macOS or Linux, activate with `source .venv/bin/activate`. `train` reads a processed CSV and saves the full pipeline at `models/nifty_it_ridge.joblib`. `predict` loads that file and runs **synthetic example inputs**, showing a predicted percentage return and the preliminary Strong Bullish, Bullish, Neutral, Bearish, or Strong Bearish classification. For your own pre-market inputs, call `src.predict.predict_return` with a mapping containing exactly the seven feature names. Only load model artifacts you trust: joblib uses pickle serialization.
+The downloader reuses existing valid files; `--refresh` replaces caches. Reproducing the exact table requires the recorded raw hashes, not merely requesting the same dates from a revision-prone provider. Raw CSVs and model binaries are ignored by Git and remain local. The active processed CSV is already tracked despite its ignore pattern; this milestone does not change Git tracking.
 
-## Limits and next steps
+Supply your own six values for manual inference:
 
-The mock data cannot establish predictive value. Real data will need verified release and observation timestamps, exchange calendars, holiday and daylight-saving alignment, and checks for data revisions. A single chronological holdout can be sensitive to the chosen market period. Future work should add audited historical data, walk-forward backtesting, a simple baseline, cost and slippage analysis, model stability checks, and calibration of the classification thresholds before any trading use.
+```powershell
+python main.py predict --nasdaq-ret 0.35 --sp500-ret 0.22 --dow-ret 0.10 --vix-ret -0.40 --usdinr-ret 0.05 --sector-prev-ret -0.12
+```
+
+This uses the historical model with manually supplied inputs; it does not acquire today's observations or certify their cutoff. Supply all six flags or `--demo`, without mixing them. Missing, extra API keys, nonnumeric, and nonfinite inputs are rejected. Preliminary classification boundaries remain unchanged: strong bullish >0.50%, bullish >0.20%, strong bearish <-0.50%, bearish <-0.20%, neutral otherwise. These labels are not validated trade instructions.
+
+`train` and `evaluate` accept `--data`, `--model`, and `--results` overrides. Evaluation verifies recorded dataset/model hashes before reusing the recorded holdout and does not refit. The historical training command refuses filenames labeled synthetic. Custom input provenance remains the caller's responsibility.
+
+## Artifacts and tests
+
+- `models/nifty_it_ridge_historical.joblib`: fitted six-feature pipeline. Original `models/nifty_it_ridge.joblib` is preserved as a synthetic artifact.
+- `results/historical/metrics.json`: training/test metrics, directional accuracy, correlation, baselines, three test-period diagnostics.
+- `baseline_comparison.csv`, `test_predictions.csv`: identical-date benchmark table and actual/predicted holdout returns.
+- `model_metadata.json`: feature/target contract, split dates/counts, UTC training timestamp, selected alpha, CV scores, dataset/raw/model/source-code hashes, environment versions and Git state.
+- `coefficients.csv`: standardized feature coefficients; associations, not causal attribution.
+- `holdout_diagnostics.png`: actual/predicted returns and cumulative directional accuracy (`--charts`).
+
+**40 tests passed** during milestone verification. Coverage includes six-feature/GIFT exclusion, target/lag/date alignment, FX filtering and staleness, loader completeness, chronological splitting, Ridge fitting, train-only scaling, serialization, input validation, metric calculations, and hash-checked repeat evaluation. Temporary test observations are synthetic fixtures; the documented production experiment uses the existing historical market files.
+
+## Limitations and roadmap
+
+This is a research prototype. A validated live 09:10 forecast pipeline, broker connection, and real execution are not implemented. No profitability is claimed. Historical bar provenance, revisions, and FX timing remain limitations. Complete-case exclusion can affect the research sample. The snapshot ends in September 2026 and is not current.
+
+Next: certified timestamps and improved FX data; genuine walk-forward validation and uncertainty estimates; instrument-specific buy/sell/hold and abstention rules; cost/slippage-aware backtesting with position sizing and risk controls; monitored paper trading. Broker integration is outside this milestone.
+
+## Resume description
+
+- Engineered a six-feature NIFTY IT forecasting dataset from 10+ years of global market history, applying calendar alignment, previous-session lagging, and FX quality exclusions to obtain 2,671 usable observations.
+- Built a reproducible StandardScaler?Ridge pipeline with chronological 80/20 validation and five-fold time-series hyperparameter tuning; persisted fitted models and experiment provenance.
+- Evaluated 535 unseen sessions against four benchmarks using MAE, RMSE, R?, correlation, and directional accuracy; achieved 53.46% direction accuracy and documented limitations through saved predictions, metrics, and a reusable inference CLI.

@@ -1,4 +1,4 @@
-"""Prediction interface for seven pre-market feature values."""
+"""Prediction interface for six manually supplied pre-market feature values."""
 
 from pathlib import Path
 from collections.abc import Mapping
@@ -25,12 +25,17 @@ def classify_prediction(prediction: float) -> str:
 
 
 def predict_return(values: Mapping[str, float], path: str | Path = MODEL_PATH) -> tuple[float, str]:
-    """Load a saved pipeline and predict from exactly seven named inputs."""
+    """Load a saved pipeline and predict from exactly six named inputs."""
     if set(values) != set(FEATURES):
         raise ValueError(f"Prediction requires exactly these features: {', '.join(FEATURES)}")
-    frame = pd.DataFrame([{feature: float(values[feature]) for feature in FEATURES}])
+    try:
+        frame = pd.DataFrame([{feature: float(values[feature]) for feature in FEATURES}])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Prediction inputs must be finite numbers") from exc
     if not np.isfinite(frame.to_numpy()).all():
         raise ValueError("Prediction inputs must be finite numbers")
     model = joblib.load(path)
+    if list(model.feature_names_in_) != FEATURES:
+        raise ValueError("Model feature contract differs; select a six-feature historical model")
     prediction = float(model.predict(frame)[0])
     return prediction, classify_prediction(prediction)
