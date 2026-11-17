@@ -4,7 +4,10 @@ __pycache__/
 pytest-cache-files-*/
 tests/pytest_temp/
 tests/loader_test_data.csv
+tests/pipeline_*_test.csv
+tests/gift_test_data.csv
 .venv/
 models/*.joblib
 data/processed/*.csv
-!data/processed/market_data.csv
+!data/processed/market_data_synthetic.csv
+data/raw/*.csv
